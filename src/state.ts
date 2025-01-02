@@ -1,78 +1,65 @@
-import { checkPrime } from "crypto";
 import { useCallback, useEffect, useState } from "react";
 
 export type Table = {
   id: string;
   position: number;
   name: string;
-  state: "ITM" | "BUBBLE" | "NONE";
+  stage: "ITM" | "BUBBLE" | "NONE";
 };
 
 const MAIN_TABLES = 6;
 
-export function generateEmptyTables(): Table[] {
+export function getInititalTables(): Table[] {
   return Array.from({ length: MAIN_TABLES }, (_, i) => {
     return {
       id: `MAIN_TABLE_${i + 1}`,
       position: i + 1,
       name: `Table ${i + 1}`,
-      state: "NONE",
+      stage: "NONE",
     };
   });
 }
 
-export function useTables() {
-  const [tables, setTables] = useState<Table[]>(generateEmptyTables);
-  const [channel] = useState(() => new WebSocket("ws://localhost:6969"));
-  const [ready, setReady] = useState(false);
+export class State {
+  public tables: Table[];
 
-  const renameTable = useCallback((id: string, name: string) => {
-    setTables((existing) => {
-      const next = [...existing];
-      for (const table of next) {
-        if (table.id === id) {
-          table.name = name;
-        }
+  constructor() {
+    this.tables = getInititalTables();
+  }
+
+  protected update(id: string, updater: (table: Table) => void): Table[] {
+    for (const table of this.tables) {
+      if (table.id === id) {
+        updater(table);
       }
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    channel.addEventListener("open", () => {
-      setReady(true);
-      channel.send(
-        JSON.stringify({
-          type: "update_tables",
-          tables,
-        }),
-      );
-    });
-  }, [channel]);
-
-  useEffect(() => {
-    if (!ready) {
-      return;
     }
+    return this.tables;
+  }
 
-    channel.send(
-      JSON.stringify({
-        type: "update_tables",
-        tables,
-      }),
-    );
+  public rename(id: string, name: string): Table[] {
+    return this.update(id, (table) => {
+      table.name = name;
+    });
+  }
 
+  public toggleStage(id: string, stage: Table["stage"]): Table[] {
+    return this.update(id, (table) => {
+      table.stage = stage;
+    });
+  }
+}
+
+export function useTables() {
+  const [tables, setTables] = useState<Table[]>([]);
+  const [channel] = useState(() => new WebSocket("ws://localhost:6969"));
+
+  useEffect(() => {
     function onMessage(message: MessageEvent<any>) {
       try {
         const data = JSON.parse(message.data);
-        console.log("received", data);
-        if (data.type === "joined") {
-          channel.send(
-            JSON.stringify({
-              type: "update_tables",
-              tables,
-            }),
-          );
+
+        if (data.type === "update_tables") {
+          setTables(data.tables);
         }
       } catch (e) {
         console.error("invalid message");
@@ -81,25 +68,31 @@ export function useTables() {
 
     channel.addEventListener("message", onMessage);
     return () => channel.removeEventListener("message", onMessage);
-  }, [ready, channel, tables]);
+  }, [channel]);
 
-  useEffect(() => {}, [channel]);
+  const renameTable = useCallback((id: string, name: string) => {
+    channel.send(
+      JSON.stringify({
+        type: "rename_table",
+        id,
+        name,
+      }),
+    );
+  }, []);
 
-  const updateTableState = useCallback((id: string, state: Table["state"]) => {
-    setTables((existing) => {
-      const next = [...existing];
-      for (const table of next) {
-        if (table.id === id) {
-          table.state = state;
-        }
-      }
-      return next;
-    });
+  const updateTableStage = useCallback((id: string, stage: Table["stage"]) => {
+    channel.send(
+      JSON.stringify({
+        type: "toggle_table_stage",
+        id,
+        stage,
+      }),
+    );
   }, []);
 
   return {
     tables,
     renameTable,
-    updateTableState,
+    updateTableStage,
   };
 }

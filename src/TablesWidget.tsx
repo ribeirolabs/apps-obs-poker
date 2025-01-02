@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
-import { Table, generateEmptyTables } from "./state";
+import { Table, getInititalTables } from "./state";
 
 export function TablesWidget() {
   const [tables, setTables] = useState<Table[]>([]);
   const [channel] = useState(() => new WebSocket("ws://localhost:6969"));
-
-  useEffect(() => {}, []);
 
   useEffect(() => {
     function onMessage(message: MessageEvent<any>) {

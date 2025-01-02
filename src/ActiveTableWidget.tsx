@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, generateEmptyTables } from "./state";
+import { Table, getInititalTables } from "./state";
 import { useLocation, useParams } from "react-router-dom";
 
 export function ActiveTableWidget() {
